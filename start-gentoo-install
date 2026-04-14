@@ -1,0 +1,76 @@
+#!/bin/bash
+
+if (( EUID != 0 )); then
+    echo "error: must be run as root (use sudo)" >&2
+    exit 1
+fi
+
+# Check if /mnt/gentoo exists, and create it if it doesn't
+if [ ! -d "/mnt/gentoo" ]; then
+    echo "Creating /mnt/gentoo directory..."
+    sudo mkdir -p /mnt/gentoo
+    echo "/mnt/gentoo created successfully."
+else
+    echo "/mnt/gentoo already exists."
+fi
+
+echo "mounting /dev/nvme0n1p8 to /mnt/gentoo"
+sudo mount /dev/nvme0n1p8 /mnt/gentoo
+echo "mounted successfully"
+
+CURRENTDIR=$(pwd)
+cd /mnt/gentoo
+
+echo "Downloading stage3 tarball to /mnt/gentoo..."
+sudo wget https://distfiles.gentoo.org/releases/amd64/autobuilds/20260114T140056Z/stage3-amd64-hardened-openrc-20260114T140056Z.tar.xz
+echo "Stage3 tarball downloaded successfully."
+
+echo "Extracting the tar into /mnt/gentoo"
+sudo tar xpvf stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner -C /mnt/gentoo
+echo "Extraction complete"
+
+cd $CURRENTDIR
+
+echo "copying portage make.conf to /etc/portage/"
+sudo cp make.conf /mnt/gentoo/etc/portage/make.conf 
+sudo cp -a . /mnt/gentoo/home/
+sudo 
+echo "copied successfully"
+
+echo "preparing for chroot"
+sudo cp --dereference /etc/resolv.conf /mnt/gentoo/etc/
+sudo mount --types proc /proc /mnt/gentoo/proc
+sudo mount --rbind /sys /mnt/gentoo/sys
+sudo mount --make-rslave /mnt/gentoo/sys
+sudo mount --rbind /dev /mnt/gentoo/dev
+sudo mount --make-rslave /mnt/gentoo/dev
+sudo mount --bind /run /mnt/gentoo/run
+sudo mount --make-slave /mnt/gentoo/run 
+echo "chrooting into gentoo"
+sudo chroot /mnt/gentoo /bin/bash -c "
+source /etc/profile
+export PS1=\"(chroot) \${PS1}\"
+echo \"Entered into gentoo\"
+echo \"mounting nvme0n1p7 as boot\"
+mount /dev/nvme0n1p7 /boot
+emerge-webrsync
+emerge --sync
+emerge --ask --verbose --update --deep --newuse @world
+emerge --ask sys-kernel/installkernel
+echo \"ACCEPT_LICENSE=\"*\"\" >> /etc/portage/make.conf
+emerge --ask linux-firmware
+emerge --ask sys-kernel/gentoo-sources
+eselect kernel set 1
+echo \"127.0.0.1     gentoo\" >> /etc/hosts
+echo gentoo > /etc/hostname
+emerge --ask dhcpcd neofetch wpa_supplicant grub sysklogd efibootmgr
+passwd
+rc-update add sysklogd default
+echo \"compile the kernel and install grub\"
+sleep 5
+mkdir -p /boot/efi
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+grub-mkconfig -o /boot/grub/grub.cfg
+exec /bin/bash
+"
+

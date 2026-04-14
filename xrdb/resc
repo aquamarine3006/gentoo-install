@@ -1,0 +1,7 @@
+URxvt*background: #181a1b
+URxvt*foreground: #d0d6d8
+URxvt*cursorColor: #6fa8dc
+URxvt*cursorBlink: false
+URxvt*scrollBar: false
+URxvt*font: -misc-fixed-medium-r-normal--20-200-75-75-c-100-iso8859-1
+

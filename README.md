@@ -1,0 +1,3 @@
+'''This is project I made to install gentoo through a script, because i find myself reinstalling gentoo often'''
+
+The project is still in progress...
